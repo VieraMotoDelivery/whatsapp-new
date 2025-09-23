@@ -10,19 +10,37 @@ whatsapp-web.js is a Node.js library that provides a WhatsApp API client by cont
 
 ## Development Commands
 
+### Running the Application
+- `npm start` - Starts the API server (runs api-server.js via start.js)
+- `npm run api` - Directly run api-server.js
+- `npm run api-test` - Test API endpoints using api-example.js
+- `npm run dev` - Alias for npm start
+- `node example.js` - Run the comprehensive example file
+
 ### Testing
 - `npm test` - Run all tests using Mocha with 5s timeout
 - `npm run test-single` - Run a single test file with Mocha
 - `mocha tests/path/to/specific.test.js` - Run specific test file
 
 ### Development
-- `npm start` - Run the example.js file
 - `npm run shell` - Start interactive Node.js REPL with library loaded
 - `npm run generate-docs` - Generate JSDoc documentation
 
 ### Code Quality
 - ESLint is configured with `.eslintrc.json` - uses 4-space indentation, single quotes, semicolons required
 - Code style follows Unix line endings and ES2022 syntax
+
+## Custom API Server
+
+This repository includes a custom Express API server implementation:
+- **api-server.js** - REST API server running on port 7005 with endpoints for sending messages
+- **api-example.js** - Example client demonstrating how to use the API endpoints
+- **start.js** - Launcher script that starts api-server.js with proper process management
+
+API Endpoints:
+- `POST /send-message` - Send message to individual contact (body: {number, message})
+- `POST /send-group-message` - Send message to group by name (body: {name, message})
+- `GET /status` - Check WhatsApp client status
 
 ## Architecture
 
@@ -33,6 +51,7 @@ whatsapp-web.js is a Node.js library that provides a WhatsApp API client by cont
 - Manages Puppeteer browser instance and WhatsApp Web session
 - Handles authentication, message sending/receiving, and event emission
 - Configurable through extensive options (puppeteer settings, auth strategies, timeouts)
+- Injects JavaScript into WhatsApp Web page via `src/util/Injected/` utilities
 
 **Authentication Strategies (`src/authStrategies/`)**
 - `NoAuth` - No session persistence (default)
@@ -60,20 +79,26 @@ whatsapp-web.js is a Node.js library that provides a WhatsApp API client by cont
 **Utilities (`src/util/`)**
 - `Constants.js` - Default options, events, status codes
 - `InterfaceController.js` - Browser page interaction
-- `Injected/` - Code injected into WhatsApp Web page
+- `Injected/` - Code injected into WhatsApp Web page (Store.js, LegacyStore.js, Utils.js, AuthStore/)
 - `Puppeteer.js` - Puppeteer utilities
+
+**Module Exports (`index.js`)**
+Exports all main classes: Client, and all structures from `src/structures/index.js`
 
 ### Key Technical Details
 
 **Browser Automation**
 - Uses Puppeteer to control Chrome/Chromium instance
-- Injects JavaScript into WhatsApp Web page to access internal APIs
+- Injects JavaScript into WhatsApp Web page to access internal APIs (`@pedroslopez/moduleraid`)
 - Requires careful handling of page reloads, network issues, and auth state
+- Can be configured for headless or headed mode
+- Supports device name and browser name customization for linked devices
 
 **Event System**
-- Client emits events for: `qr`, `authenticated`, `ready`, `message`, `message_create`, etc.
+- Client emits events for: `qr`, `authenticated`, `ready`, `message`, `message_create`, `loading_screen`, etc.
 - Event-driven architecture allows responsive bot development
 - Events defined in `src/util/Constants.js`
+- Key events: `qr` (for QR code auth), `code` (for phone pairing), `ready` (client ready), `message` (incoming messages)
 
 **Message Handling**
 - Supports text, media (images/audio/video/documents), location, contacts
@@ -90,9 +115,11 @@ whatsapp-web.js is a Node.js library that provides a WhatsApp API client by cont
 **Core Dependencies**
 - `puppeteer` (^18.2.1) - Browser automation
 - `@pedroslopez/moduleraid` (^5.0.2) - WhatsApp Web module extraction
+- `express` (^5.1.0) - Web server for API
 - `fluent-ffmpeg` (2.1.3) - Video processing for stickers
 - `mime` (^3.0.0) - MIME type handling
 - `node-fetch` (^2.6.9) - HTTP requests
+- `qrcode-terminal` (^0.12.0) - QR code display in terminal
 
 **Development Dependencies**
 - `mocha` (^9.0.2) - Test framework
@@ -111,11 +138,24 @@ Tests located in `tests/` directory:
 - `helper.js` - Test utilities and helpers
 - Tests use Mocha with 5-second timeout for async operations
 
-## Important Files
+## Important Files & Directories
 
 - `index.js` - Main module exports (Client class and all structures)
-- `example.js` - Comprehensive usage examples
-- `shell.js` - Interactive development shell
-- `index.d.ts` - TypeScript definitions
+- `example.js` - Comprehensive usage examples showing all library features
+- `api-server.js` - Custom Express REST API server implementation
+- `api-example.js` - API client examples
+- `start.js` - Application launcher for API server
+- `shell.js` - Interactive development shell (REPL)
+- `index.d.ts` - TypeScript type definitions
+- `src/` - Source code directory
+- `tests/` - Test suite directory
 - `.wwebjs_auth/` - Authentication data storage (git-ignored)
-- `.wwebjs_cache/` - Web version cache (git-ignored)
+- `.wwebjs_cache/` - WhatsApp Web version cache (git-ignored)
+
+## Authentication Methods
+
+The library supports two authentication methods:
+1. **QR Code** - Default method, emits `qr` event with QR code string
+2. **Phone Pairing** - Using `pairWithPhoneNumber` option, emits `code` event with pairing code
+
+When using LocalAuth strategy, sessions are persisted in `.wwebjs_auth/` directory.

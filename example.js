@@ -1,5 +1,24 @@
 const { Client, Location, Poll, List, Buttons, LocalAuth } = require('./index');
 const qrcode = require('qrcode-terminal');
+const { fisica } = require('./src/fisica');
+const { empresa } = require('./src/empresa');
+const { clientecadastro } = require('./src/clientecadastro');
+const { sosregistrarcodigo } = require('./src/sosregistrarcodigo');
+const { Requests } = require('./src/request');
+const {
+    codigoetelefone,
+    checkingNumbers,
+    cronJob,
+    listarentregasequantidade,
+    listartodosclientescadastrados,
+    buscardadosdecadastradodaempresa,
+    deletarentregas,
+    deletarcliente,
+    ativarchatbot,
+    desativarchatbot,
+    listarQuantidadeDeEntregasDaEmpresa,
+    excluirnumerocliente
+} = require('./src/middlewares');
 
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -26,7 +45,49 @@ const client = new Client({
     // }
 });
 
-// client initialize does not finish at ready now.
+let isClientReady = false;
+
+const messageTracker = new Map();
+const BLOCK_THRESHOLD = 5;
+const TIME_WINDOW = 300000;
+
+function shouldBlockMessage(phoneNumber, messageContent) {
+    const key = `${phoneNumber}:${messageContent.toLowerCase().trim()}`;
+    const now = Date.now();
+
+    if (!messageTracker.has(key)) {
+        messageTracker.set(key, { count: 1, firstSeen: now });
+        return false;
+    }
+
+    const data = messageTracker.get(key);
+
+    if (now - data.firstSeen > TIME_WINDOW) {
+        messageTracker.set(key, { count: 1, firstSeen: now });
+        return false;
+    }
+
+    data.count++;
+
+    if (data.count >= BLOCK_THRESHOLD) {
+        console.log(`BLOCKED: ${phoneNumber} - Mensagem repetida ${data.count} vezes: "${messageContent}"`);
+        return true;
+    }
+
+    return false;
+}
+
+function cleanupOldEntries() {
+    const now = Date.now();
+    for (const [key, data] of messageTracker.entries()) {
+        if (now - data.firstSeen > TIME_WINDOW) {
+            messageTracker.delete(key);
+        }
+    }
+}
+
+setInterval(cleanupOldEntries, 600000);
+
 client.initialize();
 
 client.on('loading_screen', (percent, message) => {
@@ -34,7 +95,6 @@ client.on('loading_screen', (percent, message) => {
 });
 
 client.on('qr', async (qr) => {
-    // NOTE: This event will not be fired if a session is specified.
     console.log('QR RECEIVED', qr);
     qrcode.generate(qr, { small: true });
 });
@@ -48,12 +108,12 @@ client.on('authenticated', () => {
 });
 
 client.on('auth_failure', msg => {
-    // Fired if session restore was unsuccessful
     console.error('AUTHENTICATION FAILURE', msg);
 });
 
 client.on('ready', async () => {
     console.log('READY');
+    isClientReady = true;
     const debugWWebVersion = await client.getWWebVersion();
     console.log(`WWebVersion = ${debugWWebVersion}`);
 
@@ -64,13 +124,103 @@ client.on('ready', async () => {
         console.log('Page error: ' + err.toString());
     });
 
+    cronJob();
+});
+
+client.on('disconnected', (reason) => {
+    console.log('DISCONNECTED:', reason);
+    isClientReady = false;
+
+    if (reason !== 'LOGOUT') {
+        console.log('Attempting to reconnect...');
+        setTimeout(() => {
+            client.initialize();
+        }, 5000);
+    }
+});
+
+client.on('error', (error) => {
+    console.error('CLIENT ERROR:', error);
+    isClientReady = false;
 });
 
 client.on('message', async msg => {
-    console.log('MESSAGE RECEIVED', msg);
+    // console.log('MESSAGE RECEIVED', msg.number);
+
+    if (shouldBlockMessage(msg.from, msg.body)) {
+        console.log(`Mensagem bloqueada de ${msg.from}: "${msg.body}"`);
+        return;
+    }
+
+    let msgNumber = await checkingNumbers(msg);
+    let etapaRetrieve = await Requests.retrieveEtapa(msg);
+    let codigotelefone = codigoetelefone(msg.from, msgNumber);
+    let buscarseexistetelefonenobanco = await Requests.buscartelefonenobanco(msg.from);
+
+    const date = new Date();
+    const h = date.getHours();
+
+    if (etapaRetrieve !== undefined && etapaRetrieve.ativado == true) {
+        sosregistrarcodigo(msg, etapaRetrieve, client);
+        clientecadastro(msgNumber, msg, etapaRetrieve, client);
+        const message = msg.body.toLowerCase();
+        let desativar = message.slice(0, 9);
+        let ativar = message.slice(0, 6);
+        let listDelivery = message.includes('entregas/');
+
+        if (buscarseexistetelefonenobanco && !listDelivery && ativar != 'ativar' && desativar != 'desativar') {
+            if (h >= 10 && h < 23) {
+                empresa(msg, msgNumber, etapaRetrieve, codigotelefone, client);
+            } else if (h < 10) {
+                client.sendMessage(msg.from, `Olá! 😃
+Gostaríamos de informar que nosso horário de *atendimento* inicia as 🕥 10h00 até às 23h00 🕙 e as atividades das 🕥 10h30 até às 23h00 🕙.
+
+Alguma dúvida ou assistência, recomendamos que entre em contato novamente mais tarde. 🏍️
+
+Obrigado pela compreensão!`);
+            } else if (h > 10 && h >= 23) {
+                client.sendMessage(msg.from, `Pedimos desculpas pelo inconveniente, pois nosso horário de *atendimento* é das 🕥 10h30 até às 23h00 🕙.
+
+Se você tiver alguma dúvida ou precisar de assistência nos mande uma mensagem no grupo de whatsApp.
+
+Agradecemos pela compreensão.`);
+            }
+        } else if (!buscarseexistetelefonenobanco && !listDelivery) {
+            if (h >= 10 && h < 23) {
+                let registrarCode = msg.body.includes('/registrar/.');
+                let registrar = msg.body.includes('/registrar');
+                if (!registrarCode && !registrar) {
+                    fisica(msg, etapaRetrieve, client, buscarseexistetelefonenobanco);
+                }
+            } else if (h < 10) {
+                client.sendMessage(msg.from, `Olá! 😃
+Gostaríamos de informar que nosso horário de *atendimento* inicia as 🕥 10h00 até às 23h00 🕙 e as atividades das 🕥 10h30 até às 23h00 🕙.
+
+Alguma dúvida ou assistência, recomendamos que entre em contato novamente mais tarde. 🏍️
+
+Obrigado pela compreensão!`);
+            } else if (h > 10 && h >= 23) {
+                client.sendMessage(msg.from, `Olá! 😃
+Pedimos desculpas pelo inconveniente, pois nosso horário de *atendimento* é das 🕥 10h30 até às 23h00 🕙.
+
+Se você tiver alguma dúvida ou precisar de assistência recomendamos que entre em contato conosco novamente amanhã a partir das 🕙 10h00, quando retomaremos nossas atividades. 🏍️
+
+Agradecemos pela compreensão.`);
+            }
+        }
+    }
+
+    listarentregasequantidade(msg, client);
+    listartodosclientescadastrados(msg, client);
+    buscardadosdecadastradodaempresa(msg, client, msgNumber);
+    deletarentregas(msg, client);
+    deletarcliente(msg, client);
+    ativarchatbot(msg, client);
+    desativarchatbot(msg, client);
+    listarQuantidadeDeEntregasDaEmpresa(codigotelefone, msg, client);
+    excluirnumerocliente(msg, client);
 
     if (msg.body === '!ping reply') {
-        // Send a new message as a reply to the current one
         msg.reply('pong');
 
     } else if (msg.body === '!ping') {
