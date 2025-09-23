@@ -33,10 +33,13 @@ app.use(express.json());
 
 let client;
 let isClientReady = false;
+let canRespondToMessages = false;
+let warmupTimeout = null;
 
 const messageTracker = new Map();
 const BLOCK_THRESHOLD = 5;
 const TIME_WINDOW = 300000;
+const WARMUP_PERIOD = 20000;
 
 function shouldBlockMessage(phoneNumber, messageContent) {
     const key = `${phoneNumber}:${messageContent.toLowerCase().trim()}`;
@@ -104,6 +107,21 @@ const initializeClient = () => {
     client.on('ready', () => {
         console.log('Cliente WhatsApp está pronto!');
         isClientReady = true;
+        canRespondToMessages = false;
+
+        console.log('Iniciando período de aquecimento de 20 segundos...');
+        io.emit('warmup_started', { message: 'Iniciando período de aquecimento de 20 segundos...', duration: WARMUP_PERIOD });
+
+        if (warmupTimeout) {
+            clearTimeout(warmupTimeout);
+        }
+
+        warmupTimeout = setTimeout(() => {
+            canRespondToMessages = true;
+            console.log('Período de aquecimento concluído. Bot pronto para responder mensagens!');
+            io.emit('warmup_completed', { message: 'Período de aquecimento concluído. Bot pronto para responder mensagens!' });
+        }, WARMUP_PERIOD);
+
         io.emit('ready');
         cronJob();
     });
@@ -121,6 +139,13 @@ const initializeClient = () => {
     client.on('disconnected', (reason) => {
         console.log('Cliente desconectado:', reason);
         isClientReady = false;
+        canRespondToMessages = false;
+
+        if (warmupTimeout) {
+            clearTimeout(warmupTimeout);
+            warmupTimeout = null;
+        }
+
         io.emit('disconnected', reason);
 
         if (reason !== 'LOGOUT') {
@@ -144,8 +169,16 @@ const initializeClient = () => {
     client.on('message', async (msg) => {
         console.log('MENSAGEM RECEBIDA:', msg.from, '-', msg.body);
 
+        if (!canRespondToMessages) {
+            const logMsg = `AQUECIMENTO: Mensagem ignorada durante período de aquecimento de ${msg.from}: "${msg.body}"`;
+            console.log(logMsg);
+            io.emit('message_ignored', { from: msg.from, body: msg.body, reason: 'warmup' });
+            return;
+        }
+
         if (shouldBlockMessage(msg.from, msg.body)) {
             console.log(`Mensagem bloqueada de ${msg.from}: "${msg.body}"`);
+            io.emit('message_blocked', { from: msg.from, body: msg.body, reason: 'spam' });
             return;
         }
 
@@ -511,6 +544,26 @@ app.get('/', (req, res) => {
             console.log('Pronto');
             statusDiv.textContent = 'WhatsApp conectado e pronto!';
             statusDiv.className = 'status ready';
+        });
+
+        socket.on('warmup_started', (data) => {
+            console.log('Aquecimento iniciado:', data);
+            statusDiv.textContent = data.message;
+            statusDiv.className = 'status waiting';
+        });
+
+        socket.on('warmup_completed', (data) => {
+            console.log('Aquecimento concluído:', data);
+            statusDiv.textContent = data.message;
+            statusDiv.className = 'status ready';
+        });
+
+        socket.on('message_ignored', (data) => {
+            console.log('Mensagem ignorada (aquecimento):', data.from, '-', data.body);
+        });
+
+        socket.on('message_blocked', (data) => {
+            console.log('Mensagem bloqueada (spam):', data.from, '-', data.body);
         });
 
         socket.on('loading', (data) => {
