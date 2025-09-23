@@ -169,6 +169,11 @@ const initializeClient = () => {
     client.on('message', async (msg) => {
         console.log('MENSAGEM RECEBIDA:', msg.from, '-', msg.body);
 
+        if (msg.from === 'status@broadcast') {
+            console.log('STATUS IGNORADO: Mensagem de status do WhatsApp');
+            return;
+        }
+
         if (!canRespondToMessages) {
             const logMsg = `AQUECIMENTO: Mensagem ignorada durante período de aquecimento de ${msg.from}: "${msg.body}"`;
             console.log(logMsg);
