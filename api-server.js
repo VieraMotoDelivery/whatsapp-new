@@ -105,12 +105,11 @@ const initializeClient = () => {
     });
 
     client.on('ready', () => {
-        console.log('Cliente WhatsApp está pronto!');
+        console.log('Cliente autenticado, carregando histórico de mensagens...');
         isClientReady = true;
         canRespondToMessages = false;
 
-        console.log('Iniciando período de aquecimento de 20 segundos...');
-        io.emit('warmup_started', { message: 'Iniciando período de aquecimento de 20 segundos...', duration: WARMUP_PERIOD });
+        io.emit('warmup_started', { message: 'Carregando histórico de mensagens, aguarde...', duration: WARMUP_PERIOD });
 
         if (warmupTimeout) {
             clearTimeout(warmupTimeout);
@@ -118,11 +117,10 @@ const initializeClient = () => {
 
         warmupTimeout = setTimeout(() => {
             canRespondToMessages = true;
-            console.log('Período de aquecimento concluído. Bot pronto para responder mensagens!');
-            io.emit('warmup_completed', { message: 'Período de aquecimento concluído. Bot pronto para responder mensagens!' });
+            console.log('✅ Sistema pronto! Bot operacional.');
+            io.emit('warmup_completed', { message: '✅ Sistema pronto! Bot operacional.' });
         }, WARMUP_PERIOD);
 
-        io.emit('ready');
         cronJob();
     });
 
