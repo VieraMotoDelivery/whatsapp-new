@@ -6,6 +6,7 @@ const { voltarEmpresa } = require('./middlewares.js');
 // etapaRetrieve = verifica se é numero privado e retorna a etapa
 // codigotelefone = verifica se o numero enviado é igual ao numero de telefone cadastrado do código
 
+
 async function empresa(msg, msgNumber, etapaRetrieve, codigotelefone, client) {
     let message = msg.body.toLowerCase();
 
