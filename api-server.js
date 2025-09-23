@@ -552,17 +552,17 @@ app.get('/', (req, res) => {
         socket.on('warmup_started', (data) => {
             console.log('Aquecimento iniciado:', data);
             let secondsLeft = Math.floor(data.duration / 1000);
+            statusDiv.textContent = `Carregando histórico de mensagens, aguarde... (${secondsLeft}s)`;
+            statusDiv.className = 'status waiting';
 
-            const updateCountdown = () => {
+            const countdown = setInterval(() => {
+                secondsLeft--;
                 if (secondsLeft > 0) {
                     statusDiv.textContent = `Carregando histórico de mensagens, aguarde... (${secondsLeft}s)`;
-                    statusDiv.className = 'status waiting';
-                    secondsLeft--;
-                    setTimeout(updateCountdown, 1000);
+                } else {
+                    clearInterval(countdown);
                 }
-            };
-
-            updateCountdown();
+            }, 1000);
         });
 
         socket.on('warmup_completed', (data) => {
