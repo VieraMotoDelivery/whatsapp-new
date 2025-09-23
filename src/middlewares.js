@@ -552,8 +552,8 @@ function digiteoenderecodecoleta(from, client) {
         from,
         `Digite o endereço de *COLETA* por favor.
 
-Precisamos que seja nesse formato do exemplo:
-
+Precisamos que seja TUDO NA MESMA LINHA:
+        
 *RUA, NUMERO DA CASA E NOME DA CIDADE*`
     );
 }

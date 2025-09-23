@@ -210,8 +210,8 @@ Por favor, escolha uma das opções ⬇️
                 `Uhuul 😁
 Agora digite o endereço de *ENTREGA* por favor.
 
-Precisamos que seja nesse formato do exemplo:
-
+Precisamos que seja TUDO NA MESMA LINHA:
+        
 *RUA, NUMERO DA CASA E NOME DA CIDADE*`
             );
 
@@ -230,14 +230,11 @@ Precisamos que seja nesse formato do exemplo:
             client.sendMessage(
                 msg.from,
                 `Atenção ⚠️
-Esse endereço não é valido, *tente novamente segundo os requisitos abaixo ⬇️
+Alguma informação pode estar errada... *tente novamente segundo os requisitos abaixo ⬇️
 
+NOME DA RUA, NUMERO DA CASA, CIDADE SE É BARRA BONITA OU IGARAÇU DO TIETE 🏘️
 
-*NOME DA RUA 🛣️*
-
-*NUMERO DA CASA 🔢*
-
-*CIDADE SE É BARRA BONITA OU IGARAÇU DO TIETE 🏘️*`
+TUDO NA MESMA LINHA`
             );
         }
     }
@@ -273,14 +270,11 @@ Esse endereço não é valido, *tente novamente segundo os requisitos abaixo ⬇
             client.sendMessage(
                 msg.from,
                 `Atenção ⚠️
-Esse endereço não é valido, *tente novamente segundo os requisitos abaixo ⬇️
+Alguma informação pode estar errada... *tente novamente segundo os requisitos abaixo ⬇️
 
+NOME DA RUA, NUMERO DA CASA, CIDADE SE É BARRA BONITA OU IGARAÇU DO TIETE 🏘️
 
-*NOME DA RUA 🛣️*
-
-*NUMERO DA CASA 🔢*
-
-*CIDADE SE É BARRA BONITA OU IGARAÇU DO TIETE 🏘️*`
+TUDO NA MESMA LINHA`
             );
         }
     }
@@ -404,8 +398,8 @@ Obrigado pela compreensão!!!`
                 `Uhuul 😁
 Agora digite o endereço de *ENTREGA* por favor.
 
-Precisamos que seja nesse formato do exemplo:
-
+Precisamos que seja TUDO NA MESMA LINHA:
+        
 *RUA, NUMERO DA CASA E NOME DA CIDADE*`
             );
 
@@ -424,14 +418,11 @@ Precisamos que seja nesse formato do exemplo:
             client.sendMessage(
                 msg.from,
                 `Atenção ⚠️
-Esse endereço não é valido, *tente novamente segundo os requisitos abaixo ⬇️
+Alguma informação pode estar errada... *tente novamente segundo os requisitos abaixo ⬇️
 
+NOME DA RUA, NUMERO DA CASA, CIDADE SE É BARRA BONITA OU IGARAÇU DO TIETE 🏘️
 
-*NOME DA RUA 🛣️*
-
-*NUMERO DA CASA 🔢*
-
-*CIDADE SE É BARRA BONITA OU IGARAÇU DO TIETE 🏘️*`
+TUDO NA MESMA LINHA`
             );
         }
     }
@@ -476,14 +467,11 @@ buscamos essa informação em nosso sistema. Estamos empenhados em fornecer-lhe 
             client.sendMessage(
                 msg.from,
                 `Atenção ⚠️
-Esse endereço não é valido, *tente novamente segundo os requisitos abaixo ⬇️
+Alguma informação pode estar errada... *tente novamente segundo os requisitos abaixo ⬇️
 
+NOME DA RUA, NUMERO DA CASA, CIDADE SE É BARRA BONITA OU IGARAÇU DO TIETE 🏘️
 
-*NOME DA RUA 🛣️*
-
-*NUMERO DA CASA 🔢*
-
-*CIDADE SE É BARRA BONITA OU IGARAÇU DO TIETE 🏘️*`
+TUDO NA MESMA LINHA`
             );
         }
     }
