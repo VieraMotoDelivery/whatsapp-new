@@ -268,10 +268,10 @@ app.post('/send-message', async (req, res) => {
             });
         }
 
-        if (!isClientReady) {
+        if (!isClientReady || !canRespondToMessages) {
             return res.status(503).json({
                 success: false,
-                error: 'Cliente WhatsApp não está pronto. Aguarde a inicialização.'
+                error: 'Cliente WhatsApp não está pronto. Aguarde a inicialização e o período de warmup (20s).'
             });
         }
 
@@ -306,10 +306,10 @@ app.post('/send-group-message', async (req, res) => {
             });
         }
 
-        if (!isClientReady) {
+        if (!isClientReady || !canRespondToMessages) {
             return res.status(503).json({
                 success: false,
-                error: 'Cliente WhatsApp não está pronto. Aguarde a inicialização.'
+                error: 'Cliente WhatsApp não está pronto. Aguarde a inicialização e o período de warmup (20s).'
             });
         }
 
@@ -350,7 +350,8 @@ app.get('/status', (req, res) => {
     res.json({
         success: true,
         clientReady: isClientReady,
-        status: isClientReady ? 'ready' : 'initializing'
+        canSendMessages: canRespondToMessages,
+        status: canRespondToMessages ? 'ready' : (isClientReady ? 'warmup' : 'initializing')
     });
 });
 
