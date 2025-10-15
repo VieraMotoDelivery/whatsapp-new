@@ -37,9 +37,11 @@ let canRespondToMessages = false;
 let warmupTimeout = null;
 
 const messageTracker = new Map();
+const processedMessages = new Map();
 const BLOCK_THRESHOLD = 5;
 const TIME_WINDOW = 300000;
 const WARMUP_PERIOD = 20000;
+const MESSAGE_CACHE_TIME = 300000;
 
 function shouldBlockMessage(phoneNumber, messageContent) {
     const key = `${phoneNumber}:${messageContent.toLowerCase().trim()}`;
@@ -67,11 +69,32 @@ function shouldBlockMessage(phoneNumber, messageContent) {
     return false;
 }
 
+function isMessageAlreadyProcessed(messageId) {
+    const now = Date.now();
+
+    if (processedMessages.has(messageId)) {
+        const processedAt = processedMessages.get(messageId);
+        if (now - processedAt < MESSAGE_CACHE_TIME) {
+            return true;
+        }
+        processedMessages.delete(messageId);
+    }
+
+    processedMessages.set(messageId, now);
+    return false;
+}
+
 function cleanupOldEntries() {
     const now = Date.now();
     for (const [key, data] of messageTracker.entries()) {
         if (now - data.firstSeen > TIME_WINDOW) {
             messageTracker.delete(key);
+        }
+    }
+
+    for (const [msgId, processedAt] of processedMessages.entries()) {
+        if (now - processedAt > MESSAGE_CACHE_TIME) {
+            processedMessages.delete(msgId);
         }
     }
 }
@@ -164,11 +187,46 @@ const initializeClient = () => {
         io.emit('loading', { percent, message });
     });
 
+    client.on('message_revoke_everyone', (msg, revoked_msg) => {
+        console.log('MENSAGEM REVOGADA (TODOS):', msg.from);
+    });
+
+    client.on('message_revoke_me', (msg) => {
+        console.log('MENSAGEM REVOGADA (EU):', msg.from);
+    });
+
     client.on('message', async (msg) => {
         console.log('MENSAGEM RECEBIDA:', msg.from, '-', msg.body);
 
         if (msg.from === 'status@broadcast') {
             console.log('STATUS IGNORADO: Mensagem de status do WhatsApp');
+            return;
+        }
+
+        const messageId = msg.id.id || `${msg.from}_${msg.timestamp}`;
+        if (isMessageAlreadyProcessed(messageId)) {
+            console.log(`MENSAGEM JÁ PROCESSADA IGNORADA: ${msg.from} - ID: ${messageId}`);
+            io.emit('message_ignored', { from: msg.from, body: msg.body, reason: 'already_processed' });
+            return;
+        }
+
+        if (msg.type === 'revoked') {
+            console.log('MENSAGEM REVOGADA IGNORADA:', msg.from);
+            return;
+        }
+
+        const ignoredTypes = ['e2e_notification', 'notification', 'protocol', 'gp2', 'notification_template'];
+        if (ignoredTypes.includes(msg.type)) {
+            console.log(`TIPO DE MENSAGEM IGNORADO: ${msg.type} de ${msg.from}`);
+            return;
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+        const messageAge = now - msg.timestamp;
+
+        if (messageAge > 60) {
+            console.log(`MENSAGEM ANTIGA IGNORADA: ${msg.from} - Idade: ${messageAge}s - "${msg.body}"`);
+            io.emit('message_ignored', { from: msg.from, body: msg.body, reason: 'old_message' });
             return;
         }
 
