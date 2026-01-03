@@ -29,6 +29,22 @@ const server = http.createServer(app);
 const io = new Server(server);
 const PORT = process.env.PORT || 7005;
 
+// ========== PROTEÇÃO CONTRA MÚLTIPLAS INSTÂNCIAS ==========
+const INSTANCE_ID = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+const os = require('os');
+let isInitializing = false;
+let initializeCount = 0;
+
+console.log('╔═══════════════════════════════════════════════════════════╗');
+console.log('║         NOVA INSTÂNCIA DO SERVIDOR INICIADA              ║');
+console.log('╚═══════════════════════════════════════════════════════════╝');
+console.log('🆔 Instance ID:', INSTANCE_ID);
+console.log('🖥️  Hostname:', os.hostname());
+console.log('💻 Platform:', process.platform);
+console.log('📍 Process PID:', process.pid);
+console.log('⏰ Started at:', new Date().toISOString());
+console.log('═'.repeat(63));
+
 app.use(express.json());
 
 let client;
@@ -102,6 +118,67 @@ function cleanupOldEntries() {
 setInterval(cleanupOldEntries, 600000);
 
 const initializeClient = () => {
+    // Proteção contra múltiplas inicializações
+    initializeCount++;
+
+    console.log('='.repeat(60));
+    console.log('🔄 TENTATIVA DE INICIALIZAÇÃO DO CLIENTE');
+    console.log('='.repeat(60));
+    console.log('🆔 Instance ID:', INSTANCE_ID);
+    console.log('🔢 Tentativa número:', initializeCount);
+    console.log('🔒 Já está inicializando?', isInitializing);
+    console.log('='.repeat(60));
+
+    if (isInitializing) {
+        console.log('⚠️ ⚠️ ⚠️  ALERTA CRÍTICO: MÚLTIPLA INICIALIZAÇÃO DETECTADA! ⚠️ ⚠️ ⚠️');
+        console.log('⚠️  Uma inicialização já está em andamento!');
+        console.log('⚠️  Isso pode causar LOGOUT no WhatsApp!');
+        console.log('⚠️  Ignorando esta tentativa de inicialização...');
+        console.log('='.repeat(60));
+        return;
+    }
+
+    if (client) {
+        console.log('⚠️  Cliente já existe! Destruindo cliente antigo...');
+        try {
+            client.destroy();
+        } catch (e) {
+            console.log('⚠️  Erro ao destruir cliente antigo:', e.message);
+        }
+    }
+
+    isInitializing = true;
+
+    // ========== LOGS DE DEBUG PARA RAILWAY ==========
+    console.log('='.repeat(60));
+    console.log('INICIANDO CLIENTE WHATSAPP - DEBUG MODE');
+    console.log('='.repeat(60));
+    console.log('🆔 Instance ID:', INSTANCE_ID);
+    console.log('Ambiente:', process.env.NODE_ENV || 'development');
+    console.log('Platform:', process.platform);
+    console.log('Diretório atual:', process.cwd());
+    console.log('Diretório de autenticação:', './.wwebjs_auth');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('='.repeat(60));
+
+    // Verificar se o diretório de autenticação existe e é persistente
+    const fs = require('fs');
+    const path = require('path');
+    const authPath = path.join(process.cwd(), '.wwebjs_auth');
+
+    try {
+        if (fs.existsSync(authPath)) {
+            const files = fs.readdirSync(authPath);
+            console.log('✓ Diretório .wwebjs_auth EXISTE');
+            console.log(`✓ Arquivos encontrados: ${files.length}`);
+            console.log('Arquivos:', files);
+        } else {
+            console.log('✗ Diretório .wwebjs_auth NÃO EXISTE');
+        }
+    } catch (error) {
+        console.error('ERRO ao verificar diretório de auth:', error.message);
+    }
+
     client = new Client({
         authStrategy: new LocalAuth(),
         puppeteer: {
@@ -120,7 +197,8 @@ const initializeClient = () => {
     });
 
     client.on('qr', async (qr) => {
-        console.log('QR Code gerado. Escaneie com seu WhatsApp:');
+        console.log('📱 [QR EVENT] QR Code gerado. Escaneie com seu WhatsApp:');
+        console.log('📱 [QR EVENT] Timestamp:', new Date().toISOString());
         qrcode.generate(qr, {small: true});
 
         const qrDataURL = await QRCode.toDataURL(qr);
@@ -128,9 +206,31 @@ const initializeClient = () => {
     });
 
     client.on('ready', () => {
-        console.log('Cliente autenticado, carregando histórico de mensagens...');
+        console.log('='.repeat(60));
+        console.log('✅ [READY EVENT] Cliente autenticado e pronto!');
+        console.log('✅ [READY EVENT] Instance ID:', INSTANCE_ID);
+        console.log('✅ [READY EVENT] Timestamp:', new Date().toISOString());
+        console.log('='.repeat(60));
+
+        isInitializing = false; // Cliente pronto, pode inicializar novamente se necessário
         isClientReady = true;
         canRespondToMessages = false;
+
+        // Verificar novamente se os dados de sessão existem
+        const fs = require('fs');
+        const path = require('path');
+        const authPath = path.join(process.cwd(), '.wwebjs_auth');
+
+        try {
+            if (fs.existsSync(authPath)) {
+                const files = fs.readdirSync(authPath);
+                console.log('✓ [READY] Sessão persistida - Arquivos:', files.length);
+            } else {
+                console.log('⚠️ [READY] ALERTA: Diretório de sessão NÃO encontrado!');
+            }
+        } catch (error) {
+            console.error('❌ [READY] ERRO ao verificar sessão:', error.message);
+        }
 
         io.emit('warmup_started', { message: 'Carregando histórico de mensagens, aguarde...', duration: WARMUP_PERIOD });
 
@@ -148,19 +248,58 @@ const initializeClient = () => {
     });
 
     client.on('authenticated', () => {
-        console.log('Cliente autenticado!');
+        console.log('='.repeat(60));
+        console.log('🔐 [AUTHENTICATED EVENT] Cliente autenticado com sucesso!');
+        console.log('🔐 [AUTHENTICATED EVENT] Instance ID:', INSTANCE_ID);
+        console.log('🔐 [AUTHENTICATED EVENT] Timestamp:', new Date().toISOString());
+        console.log('='.repeat(60));
         io.emit('authenticated');
     });
 
     client.on('auth_failure', (msg) => {
-        console.error('Falha na autenticação:', msg);
+        console.log('='.repeat(60));
+        console.error('❌ [AUTH_FAILURE EVENT] Falha na autenticação!');
+        console.error('❌ [AUTH_FAILURE EVENT] Mensagem:', msg);
+        console.error('❌ [AUTH_FAILURE EVENT] Timestamp:', new Date().toISOString());
+        console.log('='.repeat(60));
         io.emit('auth_failure', msg);
     });
 
     client.on('disconnected', (reason) => {
-        console.log('Cliente desconectado:', reason);
+        console.log('='.repeat(60));
+        console.log('⚠️ [DISCONNECTED EVENT] Cliente desconectado!');
+        console.log('⚠️ [DISCONNECTED EVENT] Instance ID:', INSTANCE_ID);
+        console.log('⚠️ [DISCONNECTED EVENT] Razão:', reason);
+        console.log('⚠️ [DISCONNECTED EVENT] Timestamp:', new Date().toISOString());
+        console.log('⚠️ [DISCONNECTED EVENT] isClientReady antes:', isClientReady);
+        console.log('⚠️ [DISCONNECTED EVENT] canRespondToMessages antes:', canRespondToMessages);
+        console.log('⚠️ [DISCONNECTED EVENT] Contagem de inicializações:', initializeCount);
+
+        // Verificar se os arquivos de sessão ainda existem
+        const fs = require('fs');
+        const path = require('path');
+        const authPath = path.join(process.cwd(), '.wwebjs_auth');
+
+        try {
+            if (fs.existsSync(authPath)) {
+                const files = fs.readdirSync(authPath);
+                console.log('⚠️ [DISCONNECTED] Sessão ainda existe - Arquivos:', files.length);
+            } else {
+                console.log('❌ [DISCONNECTED] CRÍTICO: Diretório de sessão DELETADO!');
+            }
+        } catch (error) {
+            console.error('❌ [DISCONNECTED] ERRO ao verificar sessão:', error.message);
+        }
+
+        // Log do stack trace para ver de onde veio a desconexão
+        console.log('⚠️ [DISCONNECTED] Stack trace:');
+        console.trace();
+
+        console.log('='.repeat(60));
+
         isClientReady = false;
         canRespondToMessages = false;
+        isInitializing = false; // Resetar flag para permitir nova inicialização
 
         if (warmupTimeout) {
             clearTimeout(warmupTimeout);
@@ -170,16 +309,50 @@ const initializeClient = () => {
         io.emit('disconnected', reason);
 
         if (reason !== 'LOGOUT') {
-            console.log('Tentando reconectar...');
+            console.log('🔄 [DISCONNECTED] Tentando reconectar em 5 segundos...');
             setTimeout(() => {
+                console.log('🔄 [DISCONNECTED] Reinicializando cliente...');
+                console.log('🔄 [DISCONNECTED] isInitializing resetado para:', isInitializing);
                 client.initialize();
             }, 5000);
+        } else {
+            console.log('╔═══════════════════════════════════════════════════════════╗');
+            console.log('║  🚫 LOGOUT DETECTADO - POSSÍVEIS CAUSAS:                ║');
+            console.log('║  1. Múltiplas instâncias rodando simultaneamente         ║');
+            console.log('║  2. WhatsApp detectou execução em servidor/datacenter    ║');
+            console.log('║  3. Sessão foi deslogada manualmente no celular          ║');
+            console.log('║  4. Violação dos termos de serviço detectada             ║');
+            console.log('╚═══════════════════════════════════════════════════════════╝');
+            console.log('🚫 [DISCONNECTED] Razão é LOGOUT - NÃO vai reconectar automaticamente');
+            console.log('💡 [DISCONNECTED] Verifique se há múltiplas instâncias nos logs acima');
         }
     });
 
     client.on('error', (error) => {
-        console.error('ERRO DO CLIENT:', error);
+        console.log('='.repeat(60));
+        console.error('❌ [ERROR EVENT] ERRO DO CLIENT!');
+        console.error('❌ [ERROR EVENT] Erro:', error);
+        console.error('❌ [ERROR EVENT] Stack:', error.stack);
+        console.error('❌ [ERROR EVENT] Timestamp:', new Date().toISOString());
+        console.log('='.repeat(60));
         isClientReady = false;
+    });
+
+    // Evento adicional para monitorar mudanças de estado
+    client.on('change_state', (state) => {
+        console.log('🔄 [CHANGE_STATE EVENT] Estado mudou para:', state);
+        console.log('🔄 [CHANGE_STATE EVENT] Timestamp:', new Date().toISOString());
+    });
+
+    // Evento para monitorar quando a bateria está baixa
+    client.on('change_battery', (batteryInfo) => {
+        console.log('🔋 [BATTERY EVENT] Bateria:', batteryInfo);
+    });
+
+    // Evento para monitorar se o telefone está conectado
+    client.on('remote_session_saved', () => {
+        console.log('💾 [SESSION EVENT] Sessão remota salva!');
+        console.log('💾 [SESSION EVENT] Timestamp:', new Date().toISOString());
     });
 
     client.on('loading_screen', (percent, message) => {

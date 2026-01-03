@@ -32,15 +32,37 @@ whatsapp-web.js is a Node.js library that provides a WhatsApp API client by cont
 
 ## Custom API Server
 
-This repository includes a custom Express API server implementation:
+This repository includes a custom Express API server implementation with Socket.IO for real-time communication:
+
+### Core Files
 - **api-server.js** - REST API server running on port 7005 with endpoints for sending messages
 - **api-example.js** - Example client demonstrating how to use the API endpoints
 - **start.js** - Launcher script that starts api-server.js with proper process management
 
-API Endpoints:
+### API Endpoints
 - `POST /send-message` - Send message to individual contact (body: {number, message})
 - `POST /send-group-message` - Send message to group by name (body: {name, message})
 - `GET /status` - Check WhatsApp client status
+
+### Custom Business Logic Modules (`src/`)
+- **fisica.js** - Handles individual/physical person registration workflows
+- **empresa.js** - Handles company/business registration workflows
+- **clientecadastro.js** - Client registration management
+- **sosregistrarcodigo.js** - Code registration utilities
+- **request.js** - Axios-based API client for external database integration
+- **api.js** - Axios instance configured for Railway deployment (https://db-viera.up.railway.app/)
+- **middlewares.js** - Business logic middleware functions including:
+  - `codigoetelefone` - Phone number and code verification
+  - `checkingNumbers` - Message content validation
+  - `cronJob` - Scheduled task management
+  - Various CRUD operations for deliveries and client management
+  - Chatbot activation/deactivation controls
+
+### Message Processing Features
+- **Duplicate Message Prevention**: Blocks messages repeated 5+ times within 5-minute window
+- **Message Tracking**: Prevents processing same message ID multiple times
+- **Warmup Period**: 20-second delay before bot responds to messages after initialization
+- **Auto-cleanup**: Periodic cleanup of message tracking maps
 
 ## Architecture
 
@@ -55,7 +77,7 @@ API Endpoints:
 
 **Authentication Strategies (`src/authStrategies/`)**
 - `NoAuth` - No session persistence (default)
-- `LocalAuth` - Local file-based session storage
+- `LocalAuth` - Local file-based session storage (used by api-server.js)
 - `RemoteAuth` - Remote session storage (for distributed systems)
 - `BaseAuthStrategy` - Abstract base class
 
@@ -105,7 +127,7 @@ Exports all main classes: Client, and all structures from `src/structures/index.
 - Handles message replies, mentions, reactions
 - Media requires encoding/decoding for web transmission
 
-**Group Management**  
+**Group Management**
 - Full group administration: create, modify settings, add/remove participants
 - Group invite link generation and joining
 - Participant promotion/demotion
@@ -116,9 +138,13 @@ Exports all main classes: Client, and all structures from `src/structures/index.
 - `puppeteer` (^18.2.1) - Browser automation
 - `@pedroslopez/moduleraid` (^5.0.2) - WhatsApp Web module extraction
 - `express` (^5.1.0) - Web server for API
+- `socket.io` (^4.8.1) - Real-time bidirectional communication
+- `axios` (^1.12.2) - HTTP client for external API calls
+- `cron` (^4.3.3) - Scheduled task management
 - `fluent-ffmpeg` (2.1.3) - Video processing for stickers
 - `mime` (^3.0.0) - MIME type handling
 - `node-fetch` (^2.6.9) - HTTP requests
+- `qrcode` (^1.5.4) - QR code generation
 - `qrcode-terminal` (^0.12.0) - QR code display in terminal
 
 **Development Dependencies**
@@ -133,7 +159,7 @@ Exports all main classes: Client, and all structures from `src/structures/index.
 ## Testing Structure
 
 Tests located in `tests/` directory:
-- `client.js` - Main client functionality tests  
+- `client.js` - Main client functionality tests
 - `structures/` - Tests for data structure classes
 - `helper.js` - Test utilities and helpers
 - Tests use Mocha with 5-second timeout for async operations
