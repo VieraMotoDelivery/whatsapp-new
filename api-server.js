@@ -51,6 +51,7 @@ let client;
 let isClientReady = false;
 let canRespondToMessages = false;
 let warmupTimeout = null;
+let readyEventFired = false; // Proteção contra múltiplos eventos 'ready'
 
 const messageTracker = new Map();
 const processedMessages = new Map();
@@ -210,7 +211,21 @@ const initializeClient = () => {
         console.log('✅ [READY EVENT] Cliente autenticado e pronto!');
         console.log('✅ [READY EVENT] Instance ID:', INSTANCE_ID);
         console.log('✅ [READY EVENT] Timestamp:', new Date().toISOString());
+        console.log('✅ [READY EVENT] readyEventFired antes:', readyEventFired);
         console.log('='.repeat(60));
+
+        // ⚠️ PROTEÇÃO CRÍTICA: Evento 'ready' pode ser disparado múltiplas vezes
+        // Isso causa LOGOUT no WhatsApp! Executar código apenas UMA VEZ
+        if (readyEventFired) {
+            console.log('⚠️ ⚠️ ⚠️  ALERTA: EVENTO READY DUPLICADO DETECTADO! ⚠️ ⚠️ ⚠️');
+            console.log('⚠️  O evento ready já foi processado anteriormente!');
+            console.log('⚠️  Ignorando esta execução para evitar LOGOUT...');
+            console.log('='.repeat(60));
+            return;
+        }
+
+        readyEventFired = true;
+        console.log('✅ [READY] Primeira execução do evento - Processando...');
 
         isInitializing = false; // Cliente pronto, pode inicializar novamente se necessário
         isClientReady = true;
@@ -300,6 +315,7 @@ const initializeClient = () => {
         isClientReady = false;
         canRespondToMessages = false;
         isInitializing = false; // Resetar flag para permitir nova inicialização
+        readyEventFired = false; // Resetar flag do evento ready para permitir nova conexão
 
         if (warmupTimeout) {
             clearTimeout(warmupTimeout);
